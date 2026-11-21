@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RefractPlayer</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <video class="app-background-video" id="app-background-video" muted loop autoplay playsinline hidden></video>
+    <div class="app-container">
+      <div class="titlebar">
+        <div class="traffic-lights">
+          <button class="dot red" id="btn-close" type="button" aria-label="Close window"></button>
+          <button class="dot yellow" id="btn-minimize" type="button" aria-label="Minimize window"></button>
+          <button class="dot green" id="btn-maximize" type="button" aria-label="Maximize window"></button>
+        </div>
+        <div class="titlebar-center">
+          <div class="source-toggle" data-index="0" role="group" aria-label="Main view">
+            <button class="source-option is-active" data-view="library" type="button" aria-pressed="true">Library</button>
+            <button class="source-option" data-view="playlists" type="button" aria-pressed="false">Playlist</button>
+            <button class="source-option" data-view="lyrics" type="button" aria-pressed="false">Lyrics</button>
+            <button class="source-option" data-view="queue" type="button" aria-pressed="false">Queue</button>
+          </div>
+        </div>
+        <div class="titlebar-actions">
+          <button class="settings-button" type="button" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33h-.08a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1.08z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="player-grid">
+        <div class="glass-panel sidebar">
+          <div class="sidebar-header">
+            <h3 id="library-heading">Library</h3>
+            <button class="library-playlist-clear" id="library-playlist-clear" type="button" hidden>All tracks</button>
+            <button class="library-search-toggle" id="toggle-library-search" type="button" aria-label="Search library and streaming services" aria-expanded="false" title="Search library and streaming services">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="10.8" cy="10.8" r="6.4" />
+                <path d="m15.5 15.5 4.2 4.2" />
+              </svg>
+            </button>
+          </div>
+          <input id="library-filter" type="text" placeholder="Search library & streaming services" class="glass-input" hidden />
+          <div class="library-list" id="library-list" aria-label="Audio library"></div>
+        </div>
+        <div class="glass-panel main-pane">
+          <div class="artwork-container">
+            <div class="artwork-visualizer-wrap">
+              <canvas class="artwork-visualizer" id="artwork-visualizer" aria-hidden="true"></canvas>
+              <div class="artwork-placeholder" id="artwork-placeholder">Artwork appears here</div>
+            </div>
+          </div>
+          <div class="track-info">
+            <h2 id="track-title">Nothing playing</h2>
+            <p id="track-artist">LOCAL AUDIO</p>
+          </div>
+          <div class="seek-control">
+            <svg class="seek-waveform" viewBox="0 0 1000 48" preserveAspectRatio="none" aria-hidden="true">
+              <path class="seek-wave-base" d="M0 24 Q20 13 40 24 T80 24 T120 24 T160 24 T200 24 T240 24 T280 24 T320 24 T360 24 T400 24 T440 24 T480 24 T520 24 T560 24 T600 24 T640 24 T680 24 T720 24 T760 24 T800 24 T840 24 T880 24 T920 24 T960 24 T1000 24" />
+              <path class="seek-wave-progress" id="seek-wave-progress" d="M0 24 Q20 13 40 24 T80 24 T120 24 T160 24 T200 24 T240 24 T280 24 T320 24 T360 24 T400 24 T440 24 T480 24 T520 24 T560 24 T600 24 T640 24 T680 24 T720 24 T760 24 T800 24 T840 24 T880 24 T920 24 T960 24 T1000 24" />
+            </svg>
+            <span class="seek-wave-dot" id="seek-wave-dot" aria-hidden="true"></span>
+            <input id="seek-slider" type="range" min="0" max="100" value="0" class="seek-slider" aria-label="Seek" />
+          </div>
+          <div class="controls">
+            <button class="glass-btn transport-button" id="previous-track" type="button" aria-label="Previous track" title="Previous track">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /><path d="M19 6l-10 6 10 6z" /></svg>
+            </button>
+            <button class="glass-btn primary transport-button transport-play" id="toggle-playback" type="button" aria-label="Play" title="Play">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" /></svg>
+            </button>
+            <button class="glass-btn transport-button" id="next-track" type="button" aria-label="Next track" title="Next track">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /><path d="M5 6l10 6-10 6z" /></svg>
+            </button>
+          </div>
+          <div class="volume-control">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4z" /><path class="volume-wave" d="M16 9a5 5 0 0 1 0 6m2-9a8 8 0 0 1 0 12" /></svg>
+            <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+          </div>
+          <audio id="audio-player"></audio>
+        </div>
+      </div>
+      <section class="glass-panel queue-screen" id="queue-screen" aria-label="Queue" hidden>
+        <h2>Queue</h2>
+        <div class="library-list" id="queue-list" aria-label="Queued tracks"></div>
+      </section>
+      <section class="glass-panel queue-screen playlists-screen" id="playlists-screen" aria-label="Playlists" hidden>
+        <div class="playlists-header">
+          <div>
+            <h2>Playlists</h2>
+            <p>Create collections from your library.</p>
+          </div>
+          <form class="playlist-create-form" id="playlist-create-form">
+            <input class="glass-input" id="playlist-name-input" type="text" maxlength="48" placeholder="New playlist name" aria-label="New playlist name" />
+            <button class="glass-btn primary" type="submit">Create</button>
+          </form>
+        </div>
+        <div class="playlists-browser">
+          <div class="playlist-collection" id="playlist-collection" aria-label="Your playlists"></div>
+          <div class="playlist-detail">
+            <div class="playlist-detail-header">
+              <div>
+                <h3 id="playlist-selected-name">Select a playlist</h3>
+                <p id="playlist-track-count"></p>
+              </div>
+              <button class="glass-btn" id="delete-playlist" type="button" disabled>Delete</button>
+            </div>
+            <div class="playlist-add-row">
+              <select class="glass-input" id="playlist-track-picker" aria-label="Choose a library track" disabled>
+                <option value="">Choose a track from your library</option>
+              </select>
+              <button class="glass-btn" id="add-track-to-playlist" type="button" disabled>Add track</button>
+            </div>
+            <div class="playlist-track-list" id="playlist-tracks" aria-label="Playlist tracks"></div>
+          </div>
+        </div>
+      </section>
+      <section class="glass-panel queue-screen lyrics-screen" id="lyrics-screen" aria-label="Word by word lyrics" hidden>
+        <div class="lyrics-header">
+          <div>
+            <h2 id="lyrics-track-heading">Lyrics</h2>
+            <p id="lyrics-status" aria-live="polite">Only exact word-synchronized matches are shown.</p>
+          </div>
+        </div>
+        <div class="lyrics-word-list" id="lyrics-word-list" aria-label="Synchronized lyrics"></div>
+      </section>
+      <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+        <div class="settings-scroll-content">
+          <div class="settings-dialog-header">
+            <h2 id="settings-title">Settings</h2>
+            <button class="settings-close" id="settings-close" type="button" aria-label="Close settings">&times;</button>
+          </div>
+          <nav class="settings-tabs" id="settings-tabs" data-index="0" role="tablist" aria-label="Settings sections">
+            <button class="settings-tab is-active" id="tab-appearance" type="button" role="tab" aria-selected="true" aria-controls="settings-appearance" data-settings-tab="appearance">Appearance</button>
+            <button class="settings-tab" id="tab-music" type="button" role="tab" aria-selected="false" aria-controls="settings-music" data-settings-tab="music">Music</button>
+            <button class="settings-tab" id="tab-library" type="button" role="tab" aria-selected="false" aria-controls="settings-library" data-settings-tab="library">Library &amp; Import</button>
+          </nav>
+          <section class="settings-tab-panel settings-preferences" id="settings-appearance" role="tabpanel" aria-labelledby="tab-appearance" data-settings-panel="appearance" aria-label="Appearance preferences">
+          <div class="background-video-settings">
+            <h3>Video background</h3>
+            <p>Choose a video stored in this app to play behind the player.</p>
+            <select class="glass-input" id="background-video-select" aria-label="Choose a video background">
+              <option value="">No video background</option>
+            </select>
+            <input class="file-input" id="background-video-file" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" />
+            <div class="background-video-actions">
+              <button class="glass-btn" id="upload-background-video" type="button">Upload video</button>
+              <span id="background-video-status" aria-live="polite"></span>
+            </div>
+          </div>
+          <div class="settings-import-divider" aria-hidden="true"></div>
+          <details class="settings-disclosure" open>
+            <summary>Transparency &amp; Blur</summary>
+            <div class="settings-disclosure-content">
+          <div class="settings-preference settings-range-row">
+            <label for="ui-transparency">UI transparency</label>
+            <div class="settings-range-control"><input id="ui-transparency" type="range" min="0" max="100" step="1" /><output id="ui-transparency-value" for="ui-transparency">88%</output></div>
+          </div>
+          <div class="settings-preference settings-range-row">
+            <label for="background-transparency">Background transparency</label>
+            <div class="settings-range-control"><input id="background-transparency" type="range" min="0" max="100" step="1" /><output id="background-transparency-value" for="background-transparency">0%</output></div>
+          </div>
+          <div class="settings-preference settings-range-row">
+            <label for="ui-blur">UI blur</label>
+            <div class="settings-range-control"><input id="ui-blur" type="range" min="0" max="48" step="1" /><output id="ui-blur-value" for="ui-blur">24px</output></div>
+          </div>
+          <div class="settings-preference settings-range-row">
+            <label for="background-blur">Background blur</label>
+            <div class="settings-range-control"><input id="background-blur" type="range" min="0" max="48" step="1" /><output id="background-blur-value" for="background-blur">24px</output></div>
+          </div>
+          <label class="settings-preference settings-switch-row" for="ambient-glow-toggle">
+            <span>Ambient Artwork Glow</span>
+            <input id="ambient-glow-toggle" class="settings-switch-input" type="checkbox" role="switch" checked />
+            <span class="settings-switch" aria-hidden="true"><span></span></span>
+          </label>
+            </div>
+          </details>
+          <button class="glass-btn settings-reset-button" id="reset-settings" type="button">Reset to defaults</button>
+          </section>
+          <section class="settings-tab-panel settings-preferences" id="settings-music" role="tabpanel" aria-labelledby="tab-music" data-settings-panel="music" aria-label="Music preferences" hidden>
+          <div class="settings-preference">
+            <span id="audio-source-label">Default audio source</span>
+            <div class="settings-segmented" id="default-audio-source" data-index="0" role="group" aria-labelledby="audio-source-label" style="--segment-count: 3">
+              <button type="button" class="settings-segment is-active" data-value="auto" aria-pressed="true">Auto</button>
+              <button type="button" class="settings-segment" data-value="youtube-music" aria-pressed="false">YouTube Music</button>
+              <button type="button" class="settings-segment" data-value="soundcloud" aria-pressed="false">SoundCloud</button>
+            </div>
+          </div>
+          <div class="settings-preference">
+            <span id="audio-format-label">Audio format</span>
+            <div class="settings-segmented" id="audio-format" data-index="0" role="group" aria-labelledby="audio-format-label" style="--segment-count: 2">
+              <button type="button" class="settings-segment is-active" data-value="m4a" aria-pressed="true">M4A (Fast)</button>
+              <button type="button" class="settings-segment" data-value="mp3" aria-pressed="false">MP3</button>
+            </div>
+          </div>
+          <label class="settings-preference settings-switch-row" for="discord-presence-toggle">
+            <span>Discord Rich Presence</span>
+            <input id="discord-presence-toggle" class="settings-switch-input" type="checkbox" role="switch" />
+            <span class="settings-switch" aria-hidden="true"><span></span></span>
+          </label>
+          </section>
+          <section class="settings-tab-panel settings-import" id="settings-library" role="tabpanel" aria-labelledby="tab-library" data-settings-panel="library" aria-label="Library and import" hidden>
+          <div class="settings-local-import">
+            <h3>Import local audio</h3>
+            <input id="audio-files" class="file-input" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" multiple />
+            <button class="glass-btn" id="import-audio" type="button">Import audio files</button>
+          </div>
+          <div class="settings-import-divider" aria-hidden="true"></div>
+          <h3 id="settings-import-title">Import from Spotify</h3>
+          <input id="spotify-link" class="glass-input" type="url" placeholder="Paste a Spotify track, album, or playlist link" />
+          <button class="glass-btn" id="search-spotify" type="button">Search Spotify</button>
+          <p class="search-status" id="search-status" aria-live="polite"></p>
+          <div class="download-all-row" id="download-all-row" hidden>
+            <button class="glass-btn primary" id="download-all" type="button">Download all</button>
+            <span id="download-progress" aria-live="polite"></span>
+          </div>
+          <div class="spotify-results" id="spotify-results"></div>
+          <div class="settings-storage">
+            <div>
+              <strong>Saved downloads</strong>
+              <span>Stored in this app's data folder.</span>
+            </div>
+            <button class="glass-btn" id="clear-downloads" type="button">Clear downloaded songs</button>
+            <p id="storage-status" aria-live="polite"></p>
+          </div>
+          </section>
+        </div>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
