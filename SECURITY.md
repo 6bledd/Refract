@@ -6,7 +6,7 @@ Supported Versions
 
 Security fixes are currently focused on the latest release of Refract.
 
-Reporting a Vulnerability
+[Report a Vulnerability](https://github.com/6bledd/refract/security/advisories/new)
 
 If you discover a security vulnerability in Refract, please report it privately through GitHub.
 
