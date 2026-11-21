@@ -34,3 +34,15 @@ Every feature is personally tested before release, and I use Refract as my main 
 The project also uses automated security scanning to help identify potential vulnerabilities.
 
 While no software can be guaranteed completely bug-free or secure, I aim to keep Refract transparent, reliable, and continuously improving.
+
+Operating Systems 
+
+Platform Support
+
+Refract is currently developed and tested for Windows.
+
+Windows installers are available in .exe and .msi formats through GitHub Releases.
+
+Linux and macOS support may be considered in the future, but are not currently supported.
+
+My priority is to provide a stable and reliable experience on Windows before expanding to other platforms.
