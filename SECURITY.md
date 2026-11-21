@@ -1,12 +1,8 @@
 # Security Policy
 
-Security Policy
-
-Supported Versions
-
 Security fixes are currently focused on the latest release of Refract.
 
-Reporting a vulnerability
+## Reporting a vulnerability
 
 If you discover a security vulnerability in Refract, please report it privately through GitHub.
 
@@ -22,7 +18,7 @@ Please include:
 
 Please avoid publicly disclosing security vulnerabilities before they have been investigated.
 
-Security Practices
+## Security Practices
 
 Refract is an open-source music player developed with AI assistance and personally tested before each release.
 
