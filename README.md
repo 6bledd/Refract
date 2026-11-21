@@ -23,7 +23,7 @@ npm run tauri dev
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
-Development and Testing
+## Development and Testing
 
 Refract originally started as a personal music player, built for my own everyday use. As the project developed and exceeded my expectations, I decided to make it open source.
 
@@ -33,11 +33,9 @@ Every feature is personally tested before release, and I use Refract as my main 
 
 The project also uses automated security scanning to help identify potential vulnerabilities.
 
-While no software can be guaranteed completely bug-free or secure, I aim to keep Refract transparent, reliable, and continuously improving.
+While no software can be guaranteed completely bug-free or secure, I aim to keep Refract transparent, reliable, and continuously improving. 
 
-Operating Systems 
-
-Platform Support
+## Platform Support
 
 Refract is currently developed and tested for Windows.
 
