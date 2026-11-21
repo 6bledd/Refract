@@ -16,6 +16,7 @@
         "title": "RefractPlayer",
         "width": 800,
         "height": 600,
+        "dataDirectory": "webview-data",
         "decorations": false,
         "shadow": false,
         "transparent": true

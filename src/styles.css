@@ -1413,7 +1413,6 @@ body.window-inactive .app-container::after { opacity: 1; }
 }
 .download-all-row[hidden] { display: none; }
 .download-all-row .glass-btn { padding-inline: 18px; }
-#download-progress { color: rgba(255, 255, 255, 0.72); font-size: 12px; }
 .settings-storage {
   display: grid;
   flex: 0 0 auto;

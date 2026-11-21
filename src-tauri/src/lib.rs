@@ -2,10 +2,8 @@
 use std::os::windows::process::CommandExt;
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::SystemTime;
 use tauri::{AppHandle, Manager};
 use tokio::process::Command;
 
@@ -258,15 +256,38 @@ async fn inspect_spotify_link(url: String) -> Result<Vec<SpotifyTrack>, String> 
         return Err("Paste a Spotify track, album, or playlist link.".into());
     }
 
+    let metadata_script = r#"import json, re, sys
+from argparse import Namespace
+from urllib.parse import urlsplit
+import requests
+from spotdl.types.playlist import Playlist
+from spotdl.utils.config import create_settings
+from spotdl.utils.search import get_simple_songs
+from spotdl.utils.spotify import SpotifyClient
+
+url = sys.argv[1]
+if urlsplit(url).hostname == "spotify.link":
+    url = requests.head(url, allow_redirects=True, timeout=10).url
+if urlsplit(url).hostname != "open.spotify.com":
+    raise ValueError("The link did not resolve to Spotify.")
+url = re.sub(r"/intl-\w+/", "/", url, count=1)
+
+spotify_settings, _, _ = create_settings(Namespace(config=False))
+SpotifyClient.init(**spotify_settings)
+if "playlist" in urlsplit(url).path.split("/"):
+    _, songs = Playlist.get_metadata(url)
+else:
+    songs = get_simple_songs([url])
+print(json.dumps([song.json for song in songs]))"#;
     let output = tokio::time::timeout(
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_secs(180),
         python_command()
-            .args(["-m", "spotdl", "save", &url, "--save-file", "-", "--log-level", "ERROR"])
+            .args(["-c", metadata_script, &url])
             .kill_on_drop(true)
             .output(),
     )
     .await
-    .map_err(|_| "Spotify search timed out after 60 seconds. Check your connection and try again.".to_string())?
+    .map_err(|_| "Fetching Spotify metadata timed out after 3 minutes.".to_string())?
     .map_err(|_| "Python was not found. Install Python and spotDL with `python -m pip install spotdl`, then try again.".to_string())?;
     if !output.status.success() {
         let details = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -283,21 +304,13 @@ async fn inspect_spotify_link(url: String) -> Result<Vec<SpotifyTrack>, String> 
     Ok(tracks)
 }
 
-fn find_downloaded_audio(
-    downloads_dir: &Path,
-    before: &HashSet<PathBuf>,
-    download_started: SystemTime,
-) -> Option<PathBuf> {
-    std::fs::read_dir(downloads_dir).ok()?
+fn find_downloaded_audio(directory: &Path, format: &str) -> Option<PathBuf> {
+    std::fs::read_dir(directory).ok()?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| {
-            path.is_file()
-                && matches!(path.extension().and_then(|ext| ext.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("mp3" | "m4a"))
-        })
-        .filter(|path| {
-            !before.contains(path)
-                || std::fs::metadata(path).and_then(|meta| meta.modified()).is_ok_and(|modified| modified >= download_started)
+            path.is_file() && path.extension().and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case(format))
         })
         .max_by_key(|path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok())
 }
@@ -312,23 +325,6 @@ fn fallback_downloaded_track(path: &Path) -> DownloadedTrack {
         duration: None,
         artwork_data_url: None,
     }
-}
-
-fn normalized_track_text(value: &str) -> String {
-    value.chars()
-        .filter(|character| character.is_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect()
-}
-
-fn downloaded_track_matches_query(track: &DownloadedTrack, query: &str) -> bool {
-    let Some((query_artist, query_title)) = query.split_once(" - ") else { return false; };
-    let query_artist = normalized_track_text(query_artist);
-    let query_title = normalized_track_text(query_title);
-    !query_artist.is_empty()
-        && !query_title.is_empty()
-        && normalized_track_text(&track.artist) == query_artist
-        && normalized_track_text(&track.title) == query_title
 }
 
 #[tauri::command]
@@ -393,25 +389,30 @@ for p in sys.argv[1:]:
         pass
     items.append(result)
 print(json.dumps(items))"#;
-    let output = python_command()
-        .args(["-c", metadata_script])
-        .args(&paths)
-        .output()
-        .await;
-    let metadata = output.ok()
-        .filter(|output| output.status.success())
-        .and_then(|output| serde_json::from_slice::<Vec<Value>>(&output.stdout).ok());
-    Ok(paths.iter().enumerate().map(|(index, path)| {
-        let fallback = fallback_downloaded_track(path);
-        let Some(value) = metadata.as_ref().and_then(|items| items.get(index)) else { return fallback; };
-        DownloadedTrack {
-            path: path.to_string_lossy().into_owned(),
-            title: value_string(value, &["title"]).filter(|value| !value.trim().is_empty()).unwrap_or(fallback.title),
-            artist: value_string(value, &["artist"]).unwrap_or(fallback.artist),
-            duration: value.get("duration").and_then(Value::as_f64),
-            artwork_data_url: value_string(value, &["artwork_data_url"]),
-        }
-    }).collect())
+    let mut tracks = Vec::with_capacity(paths.len());
+    // Keep each command line within Windows' argument length limit.
+    for batch in paths.chunks(16) {
+        let output = python_command()
+            .args(["-c", metadata_script])
+            .args(batch)
+            .output()
+            .await;
+        let metadata = output.ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| serde_json::from_slice::<Vec<Value>>(&output.stdout).ok());
+        tracks.extend(batch.iter().enumerate().map(|(index, path)| {
+            let fallback = fallback_downloaded_track(path);
+            let Some(value) = metadata.as_ref().and_then(|items| items.get(index)) else { return fallback; };
+            DownloadedTrack {
+                path: path.to_string_lossy().into_owned(),
+                title: value_string(value, &["title"]).filter(|value| !value.trim().is_empty()).unwrap_or(fallback.title),
+                artist: value_string(value, &["artist"]).filter(|value| !value.trim().is_empty()).unwrap_or(fallback.artist),
+                duration: value.get("duration").and_then(Value::as_f64),
+                artwork_data_url: value_string(value, &["artwork_data_url"]),
+            }
+        }));
+    }
+    Ok(tracks)
 }
 
 #[tauri::command]
@@ -448,6 +449,43 @@ async fn download_spotify_track(
     source_url: Option<String>,
     audio_format: String,
 ) -> Result<DownloadedTrack, String> {
+    let downloads_dir = app.path().app_data_dir()
+        .map_err(|error| format!("Could not locate the app data folder: {error}"))?
+        .join("downloads");
+    std::fs::create_dir_all(&downloads_dir)
+        .map_err(|error| format!("Could not create the downloads folder: {error}"))?;
+    let staging = tempfile::tempdir_in(&downloads_dir)
+        .map_err(|error| format!("Could not create a temporary download folder: {error}"))?;
+    let (mut track, path) = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        download_track_to_directory(staging.path(), query, provider, spotify_url, source_url, audio_format),
+    )
+    .await
+    .map_err(|_| "Track download timed out after 2 minutes.".to_string())??;
+    static SAVE_DOWNLOAD: Mutex<()> = Mutex::new(());
+    let _save = SAVE_DOWNLOAD.lock().map_err(|error| error.to_string())?;
+    let file_name = path.file_name().ok_or("Downloaded audio has no file name.")?;
+    let mut destination = downloads_dir.join(file_name);
+    for suffix in 2.. {
+        if !destination.exists() { break; }
+        let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+        let extension = path.extension().unwrap_or_default().to_string_lossy();
+        destination = downloads_dir.join(format!("{stem} ({suffix}).{extension}"));
+    }
+    std::fs::rename(&path, &destination)
+        .map_err(|error| format!("Could not save downloaded audio: {error}"))?;
+    track.path = destination.to_string_lossy().into_owned();
+    Ok(track)
+}
+
+async fn download_track_to_directory(
+    directory: &Path,
+    query: String,
+    provider: String,
+    spotify_url: Option<String>,
+    source_url: Option<String>,
+    audio_format: String,
+) -> Result<(DownloadedTrack, PathBuf), String> {
     let audio_provider = match provider.as_str() {
         "auto" | "soundcloud" | "youtube" | "youtube-music" => provider.as_str(),
         _ => return Err("Unsupported audio provider.".into()),
@@ -461,23 +499,7 @@ async fn download_spotify_track(
         return Err("Track title and artist are required.".into());
     }
 
-    let downloads_dir = app.path().app_data_dir()
-        .map_err(|error| format!("Could not locate the app data folder: {error}"))?
-        .join("downloads");
-    std::fs::create_dir_all(&downloads_dir)
-        .map_err(|error| format!("Could not create the downloads folder: {error}"))?;
-    if let Ok(saved_tracks) = list_downloaded_tracks(app.clone()).await {
-        if let Some(existing) = saved_tracks.into_iter().find(|track| downloaded_track_matches_query(track, query)) {
-            return Ok(existing);
-        }
-    }
-    let output_template = downloads_dir.join("{artist} - {title}.{output-ext}");
-    let before = std::fs::read_dir(&downloads_dir)
-        .map_err(|error| format!("Could not scan the downloads folder: {error}"))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .collect::<std::collections::HashSet<_>>();
-    let download_started = SystemTime::now();
+    let output_template = directory.join("{artist} - {title}.{output-ext}");
     let spotify_url = spotify_url.filter(|url| url.starts_with("https://open.spotify.com/track/"));
     let source_url = source_url.filter(|url| {
         ["https://www.youtube.com/", "https://youtube.com/", "https://music.youtube.com/", "https://youtu.be/", "https://soundcloud.com/", "https://www.soundcloud.com/", "https://on.soundcloud.com/"]
@@ -496,15 +518,16 @@ async fn download_spotify_track(
         if audio_provider != "youtube" && audio_provider != "auto" {
             command.arg("youtube");
         }
-        let result = command.arg("--output").arg(&output_template).output().await;
+        let result = command.arg("--output").arg(&output_template).kill_on_drop(true).output().await;
         match result {
-            Ok(output) if output.status.success() => {}
+            Ok(output) if output.status.success() => {
+                downloaded_path = find_downloaded_audio(directory, output_format);
+            }
             Ok(output) => {
                 spotdl_error = Some(String::from_utf8_lossy(&output.stderr).trim().to_string());
             }
             Err(error) => spotdl_error = Some(error.to_string()),
         }
-        downloaded_path = find_downloaded_audio(&downloads_dir, &before, download_started);
         if downloaded_path.is_none() && spotdl_error.is_none() {
             spotdl_error = Some("spotDL finished without creating an audio file.".to_string());
         }
@@ -516,12 +539,14 @@ async fn download_spotify_track(
             let search_terms = query.replace(" - ", " ");
             format!("{search_prefix}{search_terms}")
         });
-        let fallback_output = downloads_dir.join("%(title)s.%(ext)s");
+        let fallback_dir = directory.join("fallback");
+        let fallback_output = fallback_dir.join("%(title)s.%(ext)s");
         let fallback = python_command()
             .args(["-m", "yt_dlp", "-x", "--audio-format", output_format, "--ffmpeg-location", r"C:\Users\lxst\.spotdl"])
             .arg(search)
             .arg("-o")
             .arg(fallback_output)
+            .kill_on_drop(true)
             .output().await
             .map_err(|error| format!("Could not start Python for the yt-dlp fallback: {error}"))?;
         if !fallback.status.success() {
@@ -536,7 +561,7 @@ async fn download_spotify_track(
                 .unwrap_or(fallback_error);
             return Err(if reason.is_empty() { "yt-dlp could not find or convert that track.".into() } else { reason });
         }
-        downloaded_path = find_downloaded_audio(&downloads_dir, &before, download_started);
+        downloaded_path = find_downloaded_audio(&fallback_dir, output_format);
     }
 
     let path = downloaded_path.ok_or_else(|| "Download completed, but no new MP3 or M4A file was found.".to_string())?;
@@ -578,19 +603,20 @@ print(json.dumps(result))"#;
     let metadata = python_command()
         .args(["-c", metadata_script])
         .arg(&path)
+        .kill_on_drop(true)
         .output().await
         .ok()
         .filter(|output| output.status.success())
         .and_then(|output| serde_json::from_slice::<Value>(&output.stdout).ok())
         .unwrap_or(Value::Null);
 
-    Ok(DownloadedTrack {
-        path: path.to_string_lossy().into_owned(),
+    Ok((DownloadedTrack {
+        path: String::new(),
         title: value_string(&metadata, &["title"]).filter(|value| !value.trim().is_empty()).unwrap_or_else(|| fallback_title.to_string()),
         artist: value_string(&metadata, &["artist"]).unwrap_or_default(),
         duration: metadata.get("duration").and_then(Value::as_f64),
         artwork_data_url: value_string(&metadata, &["artwork_data_url"]),
-    })
+    }, path))
 }
 
 static DISCORD_CLIENT: OnceLock<Mutex<Option<discord_rich_presence::DiscordIpcClient>>> = OnceLock::new();
@@ -656,7 +682,16 @@ async fn update_discord_presence(title: String, artist: String) -> Result<(), St
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![inspect_spotify_link, search_streaming_services, download_spotify_track, update_discord_presence])
+        .invoke_handler(tauri::generate_handler![
+            inspect_spotify_link,
+            search_streaming_services,
+            download_spotify_track,
+            list_downloaded_tracks,
+            clear_downloaded_tracks,
+            write_background_video_chunk,
+            list_background_videos,
+            update_discord_presence,
+        ])
         .setup(|_app| {
             if let Err(error) = ensure_discord_client_connected() {
                 eprintln!("Discord IPC connection unavailable at startup: {error}");

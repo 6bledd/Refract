@@ -434,14 +434,12 @@ function initializeControls() {
   const storageStatus = document.getElementById('storage-status');
   const downloadAllRow = document.getElementById('download-all-row') as HTMLDivElement | null;
   const downloadAllButton = document.getElementById('download-all') as HTMLButtonElement | null;
-  const downloadProgress = document.getElementById('download-progress');
   let loadedSpotifyTracks: SpotifyTrack[] = [];
 
   const renderSpotifyResults = (tracks: SpotifyTrack[]) => {
     if (!spotifyResults) return;
     loadedSpotifyTracks = tracks;
     if (downloadAllRow) downloadAllRow.hidden = tracks.length < 2;
-    if (downloadProgress) downloadProgress.textContent = '';
     spotifyResults.replaceChildren(...tracks.map((track) => {
       const card = document.createElement('article');
       card.className = 'spotify-result';
@@ -480,7 +478,6 @@ function initializeControls() {
     spotifyResults?.replaceChildren();
     loadedSpotifyTracks = [];
     if (downloadAllRow) downloadAllRow.hidden = true;
-    if (downloadProgress) downloadProgress.textContent = '';
     try {
       const tracks = await invoke<SpotifyTrack[]>('inspect_spotify_link', { url });
       renderSpotifyResults(tracks);
@@ -1448,22 +1445,37 @@ function initializeControls() {
     return tracks.length - 1;
   };
 
-  type DownloadTask = { track: LibraryTrack; source: SpotifyTrack; provider: string };
+  type DownloadTask = {
+    track: LibraryTrack;
+    source: SpotifyTrack;
+    provider: string;
+    finish: (success: boolean) => void;
+  };
   const downloadQueue: DownloadTask[] = [];
+  const pendingDownloads = new Map<LibraryTrack, Promise<boolean>>();
   let downloadWorkerRunning = false;
-  const enqueueSpotifyDownload = (source: SpotifyTrack, provider: string, existingTrack?: LibraryTrack) => {
+  const enqueueSpotifyDownload = async (source: SpotifyTrack, provider: string, existingTrack?: LibraryTrack, keepSettingsOpen = false) => {
+    await restoreDownloadedTracks;
     const sourceKey = normalizeTrackText(`${source.artists}${source.title}`);
-    const existing = existingTrack ?? tracks.find((item) => item.spotifyTrack?.spotify_url === source.spotify_url || (!item.file && sourceKey.length > 0 && normalizeTrackText(`${item.artist}${item.title}`) === sourceKey));
-    if (existing && !existing.downloadStatus && existing.path) return;
+    const existing = existingTrack ?? tracks.find((item) => (source.spotify_url && item.spotifyTrack?.spotify_url === source.spotify_url) || (!item.file && sourceKey.length > 0 && normalizeTrackText(`${item.artist}${item.title}`) === sourceKey));
+    if (existing) {
+      const pending = pendingDownloads.get(existing);
+      if (pending) return pending;
+      if (!existing.downloadStatus && existing.path) return true;
+    }
     const track: LibraryTrack = existing ?? { name: source.title, title: source.title, artist: source.artists, artworkUrl: source.artwork_url, duration: source.duration, spotifyTrack: source, downloadProvider: provider, downloadStatus: 'queued' };
     track.spotifyTrack = source;
     track.downloadProvider = provider;
     track.downloadStatus = 'queued';
     if (!existing) tracks.push(track);
-    if (!downloadQueue.some((task) => task.track === track)) downloadQueue.push({ track, source, provider });
+    const completion = new Promise<boolean>((finish) => {
+      downloadQueue.push({ track, source, provider, finish });
+    });
+    pendingDownloads.set(track, completion);
     renderLibrary();
-    closeSettings();
+    if (!keepSettingsOpen) closeSettings();
     void runDownloadQueue();
+    return completion;
   };
   const runDownloadQueue = async () => {
     if (downloadWorkerRunning) return;
@@ -1503,6 +1515,9 @@ function initializeControls() {
         } catch (error) {
           console.error(`Could not download ${task.source.title}:`, error);
           task.track.downloadStatus = 'failed';
+        } finally {
+          pendingDownloads.delete(task.track);
+          task.finish(task.track.downloadStatus !== 'failed');
         }
         renderLibrary();
       }
@@ -1549,13 +1564,26 @@ function initializeControls() {
     })();
   });
 
-  downloadAllButton?.addEventListener('click', () => {
-    if (!downloadAllButton || loadedSpotifyTracks.length < 2) return;
+  downloadAllButton?.addEventListener('click', async () => {
+    if (downloadAllButton.disabled || clearDownloadsButton?.disabled || loadedSpotifyTracks.length < 2) return;
     const playlist = [...loadedSpotifyTracks];
-    const provider = defaultAudioSource === 'auto' ? 'auto' : defaultAudioSource;
-    playlist.forEach((track) => enqueueSpotifyDownload(track, provider));
-    if (downloadProgress) downloadProgress.textContent = `Queued ${playlist.length} tracks for download.`;
-    closeSettings();
+    const provider = defaultAudioSource;
+    downloadAllButton.disabled = true;
+    if (spotifySearch) spotifySearch.disabled = true;
+    if (clearDownloadsButton) clearDownloadsButton.disabled = true;
+    let imported = 0;
+    try {
+      for (const [index, track] of playlist.entries()) {
+        if (searchStatus) searchStatus.textContent = `Importing track ${index + 1} of ${playlist.length}…`;
+        if (await enqueueSpotifyDownload(track, provider, undefined, true)) imported += 1;
+      }
+      const skipped = playlist.length - imported;
+      if (searchStatus) searchStatus.textContent = `Imported ${imported} of ${playlist.length} tracks. ${skipped} skipped.`;
+    } finally {
+      downloadAllButton.disabled = false;
+      if (spotifySearch) spotifySearch.disabled = false;
+      if (clearDownloadsButton) clearDownloadsButton.disabled = false;
+    }
   });
   importButton?.addEventListener('click', () => filePicker?.click());
   document.getElementById('toggle-library-search')?.addEventListener('click', () => {
@@ -1700,7 +1728,7 @@ function initializeControls() {
   });
   audio?.addEventListener('seeked', () => refreshDiscordPresence(!!audio && !audio.paused));
 
-  void invoke<DownloadedTrack[]>('list_downloaded_tracks').then((savedTracks) => {
+  const restoreDownloadedTracks = invoke<DownloadedTrack[]>('list_downloaded_tracks').then((savedTracks) => {
     let changed = false;
     for (const savedTrack of savedTracks) {
       if (!tracks.some((track) => track.path === savedTrack.path)) {
