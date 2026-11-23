@@ -8,12 +8,16 @@ Import music from supported links, organize your library, customize the interfac
 
 ## Screenshots
 
+### Library
 ![Library](screenshots/library.png)
 
+### Lyrics
 ![Lyrics](screenshots/lyrics.png)
 
+### Playlists
 ![Playlists](screenshots/playlists.png)
 
+### Appearance settings
 ![Appearance settings](screenshots/appearance.png)
 
 ## Features
