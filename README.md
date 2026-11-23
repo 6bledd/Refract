@@ -1,46 +1,97 @@
 # RefractPlayer
 
-RefractPlayer can import local audio and use spotDL to read track metadata from Spotify links. Spotify links are never downloaded by this integration: the app builds search links for SoundCloud, YouTube Music, and YouTube.
+A free, open-source music player for Windows.
 
-## Spotify link search
+RefractPlayer is a desktop music player built around a simple idea: finding, downloading and listening to your music shouldn't be complicated.
 
-Install [spotDL](https://github.com/spotDL/spotify-downloader) and make sure the `spotdl` command is available on your PATH. For example, with Python installed:
+Import music from supported links, organize your library, customize the interface and listen locally without needing a browser open.
 
-```sh
-python -m pip install spotdl
-```
+## Screenshots
 
-Paste a Spotify track, album, or playlist link into **Find from Spotify** and choose a service to open its search page. Searching returns metadata only; selecting a service opens that provider in your browser.
+![Library](screenshots/library.png)
 
-## Development
+![Lyrics](screenshots/lyrics.png)
 
-```sh
-npm install
-npm run tauri dev
-```
+![Playlists](screenshots/playlists.png)
 
-## Recommended IDE Setup
+![Appearance settings](screenshots/appearance.png)
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Features
 
-## Development and Testing
+- **Music downloads** — Search for songs and save them directly to your library.
+- **Playlist importing** — Import music from Spotify, YouTube Music and SoundCloud links.
+- **Local playback** — Listen to your downloaded music without an internet connection.
+- **Synced lyrics** — Follow along with timed lyrics, including multiple visual styles and timing adjustments.
+- **Customizable appearance** — Adjust the look and feel of the player.
+- **Library management** — Organize your music and playlists in one place.
+- **Automatic retries** — Failed downloads can be retried without starting the entire import again.
+- **MP3 and M4A support** — Choose the format that works best for you.
 
-Refract originally started as a personal music player, built for my own everyday use. As the project developed and exceeded my expectations, I decided to make it open source.
+## Download
 
-Refract is developed with the assistance of AI coding tools, including OpenAI Codex.
+Head to the [Releases](../../releases) page and download the latest Windows installer.
 
-Every feature is personally tested before release, and I use Refract as my main music player. This helps me identify bugs and usability issues through regular use.
+Both `.exe` and `.msi` installers may be available.
 
-The project also uses automated security scanning to help identify potential vulnerabilities.
+RefractPlayer is currently an early release, so you might run into the occasional bug.
 
-While no software can be guaranteed completely bug-free or secure, I aim to keep Refract transparent, reliable, and continuously improving. 
+If something isn't working, feel free to open an issue.
 
-## Platform Support
+## How to use
 
-Refract is currently developed and tested for Windows.
+1. Install and open RefractPlayer.
+2. Search for a song or paste a supported music link.
+3. Import the music you want.
+4. Play it from your library.
 
-Windows installers are available in .exe and .msi formats through GitHub Releases.
+That's it.
 
-Linux and macOS support may be considered in the future, but are not currently supported.
+## Built with
 
-My priority is to provide a stable and reliable experience on Windows before expanding to other platforms.
+- Tauri
+- Rust
+- TypeScript
+- spotDL
+- yt-dlp
+- FFmpeg
+
+RefractPlayer bundles the media tools it needs, so you shouldn't have to install Python or FFmpeg separately.
+
+## Known limitations
+
+Some tracks may not be available or may fail to match correctly, particularly obscure remixes, alternate versions and unofficial uploads.
+
+Synced lyrics depend on third-party sources and may occasionally need manual timing adjustments.
+
+## Contributing
+
+Contributions, bug reports and suggestions are welcome.
+
+If you find an issue or have an idea for an improvement, open a GitHub issue.
+
+## Disclaimer
+
+RefractPlayer is an independent project and is not affiliated with Spotify, YouTube, SoundCloud or their respective owners.
+
+Music and artwork belong to their respective copyright holders. Users are responsible for ensuring they have permission to download and use content and for complying with applicable laws and service terms.
+
+## A note about development
+
+RefractPlayer is a vibe-coded project.
+
+Most of the code was written with the help of AI, with the ideas, design decisions, testing and direction coming from me.
+
+I'm not going to pretend I hand-wrote every line. This started as a personal project to make a music player I'd actually want to use, and it gradually turned into something worth sharing.
+
+It's still a work in progress, and contributions, bug reports and suggestions are welcome.
+
+## License
+
+RefractPlayer is released under the GNU General Public License v3.0 (GPL-3.0).
+
+You're free to use, study, modify and redistribute the project under the terms of the license.
+
+If you distribute a modified version, you must also make the corresponding source code available under GPL-3.0.
+
+See the [LICENSE](LICENSE) file for the full terms.
+
